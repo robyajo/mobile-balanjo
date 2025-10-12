@@ -16,6 +16,14 @@ This is an [Expo](https://expo.dev) project created with [`create-expo-app`](htt
    npx expo start
    ```
 
+   1. Install dependencies for auth
+
+   ```bash
+   npm install zustand
+   npx expo install react-native-mmkv
+   npx expo prebuild
+   ```
+
 In the output, you'll find options to open the app in a
 
 - [development build](https://docs.expo.dev/develop/development-builds/introduction/)
