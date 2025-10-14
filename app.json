@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "mobile-balanjo",
+    "name": "Mobile-Balanjo",
     "slug": "mobile-balanjo",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -49,8 +49,10 @@
     },
     "extra": {
       "eas": {
-        "projectId": "your-project-id-here"
-      }
-    }
+        "projectId": "be5b2ec0-456d-4d35-9254-14a0132dde5d"
+      },
+      "router": {}
+    },
+    "owner": "robykartis"
   }
 }
