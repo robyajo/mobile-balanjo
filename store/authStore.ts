@@ -32,7 +32,7 @@ interface AuthStore {
   user: User | null;
   accessTokenExpiration: number | null;
   _hasHydrated: boolean;
-  login: (username: string, password: string) => Promise<boolean>;
+  login: (username: string, password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   setHasHydrated: (value: boolean) => void;
   checkAuth: () => Promise<boolean>;
@@ -55,108 +55,111 @@ export const useAuthStore = create(
       user: null,
       accessTokenExpiration: null,
       _hasHydrated: false,
-      login: async (email: string, password: string) => {
+  login: async (email: string, password: string) => {
+    try {
+      console.log("Attempting login for user:", email);
+
+      // Try main API first
+      let apiUrl = `${API_URL}/api/auth/login`;
+
+      // Call API to Login
+      let response = await fetch(apiUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email,
+          password,
+        }),
+        credentials: "include",
+      });
+
+      console.log("Login response status:", response.status);
+
+      // If main API fails, try fallback (for testing)
+      if (!response.ok && response.status >= 500) {
+        console.log("Main API failed, trying fallback...");
+        apiUrl = "https://dummyjson.com/auth/login";
+        response = await fetch(apiUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            username: email, // Map email to username for fallback API
+            password,
+          }),
+        });
+        console.log("Fallback response status:", response.status);
+      }
+
+      console.log(
+        "Login response headers:",
+        Object.fromEntries(response.headers.entries())
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Login failed with status:", response.status);
+        console.error("Error response:", errorText);
+
+        // Try to parse as JSON if possible
         try {
-          console.log("Attempting login for user:", email);
-
-          // Try main API first
-          let apiUrl = `${API_URL}/api/auth/login`;
-
-          // Call API to Login
-          let response = await fetch(apiUrl, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              email,
-              password,
-            }),
-            credentials: "include",
-          });
-
-          console.log("Login response status:", response.status);
-
-          // If main API fails, try fallback (for testing)
-          if (!response.ok && response.status >= 500) {
-            console.log("Main API failed, trying fallback...");
-            apiUrl = "https://dummyjson.com/auth/login";
-            response = await fetch(apiUrl, {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
-                username: email, // Map email to username for fallback API
-                password,
-              }),
-            });
-            console.log("Fallback response status:", response.status);
-          }
-
-          console.log(
-            "Login response headers:",
-            Object.fromEntries(response.headers.entries())
+          const errorData = JSON.parse(errorText);
+          throw new Error(
+            errorData.message || `Login failed with status ${response.status}`
           );
-
-          if (!response.ok) {
-            const errorText = await response.text();
-            console.error("Login failed with status:", response.status);
-            console.error("Error response:", errorText);
-
-            // Try to parse as JSON if possible
-            try {
-              const errorData = JSON.parse(errorText);
-              throw new Error(
-                `Login failed: ${errorData.message || "Unknown error"}`
-              );
-            } catch (parseError) {
-              throw new Error(
-                `Login failed with status ${response.status}: ${errorText}`
-              );
-            }
-          }
-
-          const data = await response.json();
-          console.log("Login successful, received data:", data);
-
-          // Handle different response structures
-          let accessToken, userData;
-
-          if (data.access_token) {
-            // Main API structure
-            accessToken = data.access_token;
-            userData = data.data;
-          } else if (data.token) {
-            // Fallback API structure
-            accessToken = data.token;
-            userData = {
-              id: data.id,
-              name: data.firstName + " " + data.lastName,
-              email: data.email,
-              avatar_url: data.image,
-              role: "User",
-              active: "active",
-            };
-          }
-
-          const dataAuth = {
-            isAuthenticated: true,
-            accessToken: accessToken,
-            refreshToken: undefined,
-            user: userData,
-            accessTokenExpiration: Date.now() + 60 * 60 * 1000, // Default 1 hour
-          };
-
-          // Set to Zustand (persist will handle storage)
-          set(dataAuth);
-          console.log("Auth state updated successfully");
-          return true;
-        } catch (error) {
-          console.error("Login error:", error);
-          return false;
+        } catch (parseError) {
+          throw new Error(
+            `Login failed with status ${response.status}: ${errorText}`
+          );
         }
-      },
+      }
+
+      const data = await response.json();
+      console.log("Login successful, received data:", data);
+
+      // Handle different response structures
+      let accessToken, userData;
+
+      if (data.access_token) {
+        // Main API structure
+        accessToken = data.access_token;
+        userData = data.data;
+      } else if (data.token) {
+        // Fallback API structure
+        accessToken = data.token;
+        userData = {
+          id: data.id,
+          name: data.firstName + " " + data.lastName,
+          email: data.email,
+          avatar_url: data.image,
+          role: "User",
+          active: "active",
+        };
+      }
+
+      const dataAuth = {
+        isAuthenticated: true,
+        accessToken: accessToken,
+        refreshToken: undefined,
+        user: userData,
+        accessTokenExpiration: Date.now() + 60 * 60 * 1000, // Default 1 hour
+      };
+
+      // Set to Zustand (persist will handle storage)
+      set(dataAuth);
+      console.log("Auth state updated successfully");
+      return { success: true };
+    } catch (error) {
+      console.error("Login error:", error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error occurred"
+      };
+    }
+  },
       logout: async () => {
         try {
           // Get current state to access accessToken

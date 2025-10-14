@@ -22,11 +22,42 @@ export default function LoginScreen() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [emailError, setEmailError] = useState("");
+  const [passwordError, setPasswordError] = useState("");
   const { login } = useAuthStore();
 
+  const handleEmailChange = (text: string) => {
+    setEmail(text);
+    if (emailError) {
+      setEmailError("");
+    }
+  };
+
+  const handlePasswordChange = (text: string) => {
+    setPassword(text);
+    if (passwordError) {
+      setPasswordError("");
+    }
+  };
+
   const handleLogin = async () => {
-    if (!email.trim() || !password.trim()) {
-      Alert.alert("Error", "Mohon isi semua field");
+    // Clear previous errors
+    setEmailError("");
+    setPasswordError("");
+
+    const errors: string[] = [];
+
+    if (!email.trim()) {
+      setEmailError("Email is required.");
+      errors.push("Email is required.");
+    }
+    if (!password.trim()) {
+      setPasswordError("Password is required.");
+      errors.push("Password is required.");
+    }
+
+    if (errors.length > 0) {
+      // Set field-specific errors instead of showing alert
       return;
     }
 
@@ -34,10 +65,80 @@ export default function LoginScreen() {
     const result = await login(email, password);
     setIsLoading(false);
 
-    if (!result) {
+    if (!result.success) {
+      // Clear previous field errors first
+      setEmailError("");
+      setPasswordError("");
+
+      // Try to parse the error message to extract the meaningful part
+      let errorMessage = result.error || "Login gagal. Silakan coba lagi.";
+
+      console.log("Raw error from API:", result.error);
+
+      // If the error contains JSON-like structure, try to parse it
+      if (result.error) {
+        try {
+          // Look for the JSON part in the error message
+          const jsonStart = result.error.indexOf('{');
+          const jsonEnd = result.error.lastIndexOf('}');
+
+          if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd > jsonStart) {
+            const jsonString = result.error.substring(jsonStart, jsonEnd + 1);
+            console.log("Extracted JSON:", jsonString);
+
+            const errorData = JSON.parse(jsonString);
+            console.log("Parsed error data:", errorData);
+
+            if (errorData.errors) {
+              // Set field-specific errors based on API response
+              if (errorData.errors.email) {
+                const emailErrors = Array.isArray(errorData.errors.email)
+                  ? errorData.errors.email
+                  : [errorData.errors.email];
+                setEmailError(emailErrors[0]);
+                console.log("Setting email error:", emailErrors[0]);
+              }
+
+              if (errorData.errors.password) {
+                const passwordErrors = Array.isArray(errorData.errors.password)
+                  ? errorData.errors.password
+                  : [errorData.errors.password];
+                setPasswordError(passwordErrors[0]);
+                console.log("Setting password error:", passwordErrors[0]);
+              }
+
+              // For alert, use general message or first error
+              if (errorData.message) {
+                errorMessage = errorData.message;
+              } else {
+                const allErrors = [];
+                if (errorData.errors.email) {
+                  allErrors.push(...(Array.isArray(errorData.errors.email) ? errorData.errors.email : [errorData.errors.email]));
+                }
+                if (errorData.errors.password) {
+                  allErrors.push(...(Array.isArray(errorData.errors.password) ? errorData.errors.password : [errorData.errors.password]));
+                }
+                errorMessage = allErrors[0] || "Validation failed";
+              }
+            } else if (errorData.message) {
+              errorMessage = errorData.message;
+              console.log("Using message:", errorMessage);
+            }
+          } else {
+            console.log("No JSON structure found in error message");
+          }
+        } catch (parseError) {
+          // If parsing fails, use the original error message
+          console.log("Could not parse error message:", parseError);
+          console.log("Parse error details:", parseError instanceof Error ? parseError.message : String(parseError));
+        }
+      }
+
+      console.log("Final error message to display:", errorMessage);
+
       Alert.alert(
         "Login Gagal",
-        "Email atau password salah, atau terjadi kesalahan koneksi. Silakan coba lagi.",
+        errorMessage,
         [{ text: "OK" }]
       );
     }
@@ -82,12 +183,13 @@ export default function LoginScreen() {
                   placeholderTextColor="#9CA3AF"
                   style={styles.input}
                   value={email}
-                  onChangeText={setEmail}
+                  onChangeText={handleEmailChange}
                   autoCapitalize="none"
                   keyboardType="email-address"
                   editable={!isLoading}
                 />
               </View>
+              {emailError ? <Text style={styles.errorText}>{emailError}</Text> : null}
             </View>
 
             {/* Password Input */}
@@ -101,7 +203,7 @@ export default function LoginScreen() {
                   secureTextEntry={!showPassword}
                   style={styles.input}
                   value={password}
-                  onChangeText={setPassword}
+                  onChangeText={handlePasswordChange}
                   editable={!isLoading}
                 />
                 <TouchableOpacity
@@ -114,6 +216,7 @@ export default function LoginScreen() {
                   </Text>
                 </TouchableOpacity>
               </View>
+              {passwordError ? <Text style={styles.errorText}>{passwordError}</Text> : null}
             </View>
 
             {/* Forgot Password */}
@@ -300,6 +403,12 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 16,
     color: "#1F2937",
+  },
+  errorText: {
+    color: "#EF4444",
+    fontSize: 12,
+    marginTop: 4,
+    marginLeft: 4,
   },
   eyeButton: {
     padding: 4,
