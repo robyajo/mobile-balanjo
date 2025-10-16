@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Mobile-Balanjo",
-    "slug": "mobile-balanjo",
+    "slug": "balanjoapp",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -10,7 +10,10 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.anonymous.mobilebalanjo"
+      "bundleIdentifier": "com.anonymous.mobilebalanjo",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
